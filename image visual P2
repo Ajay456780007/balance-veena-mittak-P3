@@ -1,0 +1,175 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from PIL import Image, ImageTk
+
+# -----------------------------
+# Placeholder feature functions
+# -----------------------------
+# Replace the logic inside each function to implement the desired image processing.
+# Each function must take a PIL.Image.Image (or None) and return a PIL.Image.Image.
+
+def feature1(img: Image.Image | None) -> Image.Image | None:
+    # TODO: replace with custom processing
+    return img
+
+def feature2(img: Image.Image | None) -> Image.Image | None:
+    # TODO: replace with custom processing
+    return img
+
+def feature3(img: Image.Image | None) -> Image.Image | None:
+    # TODO: replace with custom processing
+    return img
+
+def feature4(img: Image.Image | None) -> Image.Image | None:
+    # TODO: replace with custom processing
+    return img
+
+def feature5(img: Image.Image | None) -> Image.Image | None:
+    # TODO: replace with custom processing
+    return img
+
+# -----------------------------
+# GUI Application
+# -----------------------------
+
+class App(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Simple Feature GUI")
+        self.geometry("1100x750")
+        self.minsize(900, 600)
+
+        # State
+        self.input_image: Image.Image | None = None
+        self.display_thumbs = []  # keep references to ImageTk to prevent GC
+
+        # Layout frames
+        self._build_top_controls()
+        self._build_feature_buttons()
+        self._build_image_grid()
+
+    def _build_top_controls(self):
+        top = tk.Frame(self, padx=10, pady=10)
+        top.pack(side=tk.TOP, fill=tk.X)
+
+        self.select_btn = tk.Button(top, text="Select Image", command=self.select_image, width=15)
+        self.select_btn.pack(side=tk.LEFT)
+
+        self.path_var = tk.StringVar(value="No image selected")
+        self.path_label = tk.Label(top, textvariable=self.path_var, anchor="w")
+        self.path_label.pack(side=tk.LEFT, padx=10, expand=True, fill=tk.X)
+
+    def _build_feature_buttons(self):
+        bar = tk.Frame(self, padx=10, pady=5)
+        bar.pack(side=tk.TOP, fill=tk.X)
+
+        btn_cfg = dict(width=12, height=2)
+
+        self.btn_f1 = tk.Button(bar, text="Feature 1", command=lambda: self.run_feature(1), **btn_cfg)
+        self.btn_f2 = tk.Button(bar, text="Feature 2", command=lambda: self.run_feature(2), **btn_cfg)
+        self.btn_f3 = tk.Button(bar, text="Feature 3", command=lambda: self.run_feature(3), **btn_cfg)
+        self.btn_f4 = tk.Button(bar, text="Feature 4", command=lambda: self.run_feature(4), **btn_cfg)
+        self.btn_f5 = tk.Button(bar, text="Feature 5", command=lambda: self.run_feature(5), **btn_cfg)
+
+        for b in (self.btn_f1, self.btn_f2, self.btn_f3, self.btn_f4, self.btn_f5):
+            b.pack(side=tk.LEFT, padx=5)
+
+    def _build_image_grid(self):
+        # Grid area: one row for input image, one row for five output boxes
+        grid = tk.Frame(self, padx=10, pady=10)
+        grid.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # Input image display
+        inp_frame = tk.LabelFrame(grid, text="Input Image", padx=5, pady=5)
+        inp_frame.grid(row=0, column=0, columnspan=5, sticky="nsew", pady=(0, 10))
+        self.input_canvas = tk.Label(inp_frame, text="No image", width=90, height=20, bg="#f0f0f0", anchor="center")
+        self.input_canvas.pack(fill=tk.BOTH, expand=True)
+
+        # Output displays for each feature
+        self.output_frames = []
+        self.output_labels = []
+        for i in range(5):
+            lf = tk.LabelFrame(grid, text=f"Feature {i+1} Output", padx=5, pady=5)
+            lf.grid(row=1, column=i, sticky="nsew", padx=5)
+            lbl = tk.Label(lf, text="Empty", width=24, height=16, bg="#f8f8f8", anchor="center")
+            lbl.pack(fill=tk.BOTH, expand=True)
+            self.output_frames.append(lf)
+            self.output_labels.append(lbl)
+
+        # Configure grid resizing
+        for c in range(5):
+            grid.columnconfigure(c, weight=1)
+        grid.rowconfigure(0, weight=2)
+        grid.rowconfigure(1, weight=3)
+
+    def select_image(self):
+        filetypes = [
+            ("Image files", "*.png *.jpg *.jpeg *.bmp *.gif *.tiff"),
+            ("All files", "*.*"),
+        ]
+        path = filedialog.askopenfilename(title="Select image", filetypes=filetypes)
+        if not path:
+            return
+        try:
+            img = Image.open(path).convert("RGB")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open image:\n{e}")
+            return
+
+        self.input_image = img
+        self.path_var.set(path)
+        self._show_image_on_label(img, self.input_canvas)
+        # Clear previous outputs
+        for lbl in self.output_labels:
+            lbl.config(image="", text="Empty")
+
+    def run_feature(self, idx: int):
+        if self.input_image is None:
+            messagebox.showinfo("Info", "Please select an image first.")
+            return
+
+        # Map feature index to function
+        feature_funcs = {
+            1: feature1,
+            2: feature2,
+            3: feature3,
+            4: feature4,
+            5: feature5,
+        }
+        func = feature_funcs.get(idx)
+        try:
+            result = func(self.input_image)
+        except Exception as e:
+            messagebox.showerror("Error", f"Feature {idx} failed:\n{e}")
+            return
+
+        if result is None:
+            messagebox.showwarning("Warning", f"Feature {idx} returned no image.")
+            return
+
+        # Display the result in the corresponding output box
+        out_lbl = self.output_labels[idx - 1]
+        self._show_image_on_label(result, out_lbl)
+
+    def _show_image_on_label(self, img: Image.Image, lbl: tk.Label):
+        # Resize to fit label while keeping aspect ratio
+        lbl.update_idletasks()
+        w = max(lbl.winfo_width(), 200)
+        h = max(lbl.winfo_height(), 200)
+        img_disp = self._fit_image(img, (w, h))
+        tk_img = ImageTk.PhotoImage(img_disp)
+        # Keep reference
+        self.display_thumbs.append(tk_img)
+        # Set image
+        lbl.config(image=tk_img, text="")
+
+    @staticmethod
+    def _fit_image(img: Image.Image, box: tuple[int, int]) -> Image.Image:
+        bw, bh = box
+        im = img.copy()
+        im.thumbnail((bw, bh), Image.Resampling.LANCZOS)
+        return im
+
+if __name__ == "__main__":
+    app = App()
+    app.mainloop()
