@@ -1,0 +1,230 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from PIL import Image, ImageTk
+import numpy as np
+import cv2
+
+# Keras 3 uses `keras` multi-backend; adjust import to match the environment.
+# If using TensorFlow Keras, change to: from tensorflow.keras.models import load_model
+from keras.models import load_model
+
+# ---------------------------
+# Placeholder feature funcs
+# Each must return a 2D array of shape (150, 150), dtype float32 or compatible.
+# Replace bodies with actual implementations.
+# ---------------------------
+
+def deep_color_based_pattern(img):
+    # TODO: replace with real implementation
+    # Example placeholder: convert to grayscale and resize to 150x150
+    if img is None:
+        raise ValueError("Input image is None")
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    out = cv2.resize(gray, (150, 150), interpolation=cv2.INTER_AREA)
+    return out.astype(np.float32) / 255.0
+
+def Deep_Structural_Pattern(img):
+    # TODO: replace with real implementation
+    if img is None:
+        raise ValueError("Input image is None")
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    out = cv2.Laplacian(gray, cv2.CV_32F, ksize=3)
+    out = cv2.resize(out, (150, 150), interpolation=cv2.INTER_AREA)
+    # normalize to 0..1
+    out = cv2.normalize(out, None, 0, 1, cv2.NORM_MINMAX)
+    return out.astype(np.float32)
+
+def glcm_statistical_features(img):
+    # TODO: replace with real implementation
+    if img is None:
+        raise ValueError("Input image is None")
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    out = cv2.GaussianBlur(gray, (5, 5), 0)
+    out = cv2.resize(out, (150, 150), interpolation=cv2.INTER_AREA)
+    return (out.astype(np.float32) / 255.0)
+
+def Resnet151(img):
+    # TODO: replace with real implementation
+    # Placeholder: edge magnitude
+    if img is None:
+        raise ValueError("Input image is None")
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+    gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+    mag = cv2.magnitude(gx, gy)
+    mag = cv2.resize(mag, (150, 150), interpolation=cv2.INTER_AREA)
+    mag = cv2.normalize(mag, None, 0, 1, cv2.NORM_MINMAX)
+    return mag.astype(np.float32)
+
+def deep_pixel_flow_map(img):
+    # TODO: replace with real implementation
+    if img is None:
+        raise ValueError("Input image is None")
+    # Simple placeholder: downsampled green channel
+    g = img[..., 1]
+    out = cv2.resize(g, (150, 150), interpolation=cv2.INTER_AREA)
+    return (out.astype(np.float32) / 255.0)
+
+# ---------------------------
+# GUI Application
+# ---------------------------
+
+class App:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Model Feature Extraction & Classification")
+        self.root.geometry("760x650")
+        self.root.configure(bg="#f0f2f5")
+
+        # Hardcoded model paths: set to actual .h5/.keras files on disk
+        # Example:
+        # r"F:\models\db1_model.h5"  or  r"/home/user/models/db1_model.keras"
+        self.model_paths = {
+            'DB1': r"C:\path\to\models\db1_model.h5",
+            'DB2': r"C:\path\to\models\db2_model.h5",
+            'DB3': r"C:\path\to\models\db3_model.h5",
+        }
+
+        # Storage for loaded models
+        self.models = {'DB1': None, 'DB2': None, 'DB3': None}
+        self.current_model_key = None
+
+        # Top frame for model buttons
+        top_frame = tk.Frame(root, bg="#f0f2f5")
+        top_frame.pack(pady=15)
+
+        for db_name in ['DB1', 'DB2', 'DB3']:
+            btn = tk.Button(
+                top_frame,
+                text=db_name,
+                width=10,
+                font=("Helvetica", 12, "bold"),
+                command=lambda db=db_name: self.load_model_hardcoded(db)
+            )
+            btn.pack(side=tk.LEFT, padx=10)
+
+        # Model path display
+        self.model_path_label = tk.Label(
+            root, text="No model loaded", bg="#f0f2f5", fg="#555", font=("Helvetica", 10), wraplength=700, justify="left"
+        )
+        self.model_path_label.pack(pady=5)
+
+        # Image selection section
+        img_frame = tk.Frame(root, bg="#f0f2f5")
+        img_frame.pack(pady=10)
+
+        select_img_btn = tk.Button(img_frame, text="Select Image", font=("Helvetica", 12), command=self.select_image)
+        select_img_btn.pack()
+
+        # Canvas to display loaded image
+        self.img_canvas = tk.Canvas(root, width=224, height=224, bg="white", bd=2, relief=tk.RIDGE, highlightthickness=0)
+        self.img_canvas.pack(pady=10)
+
+        # Predict button
+        predict_btn = tk.Button(
+            root, text="Predict", font=("Helvetica", 14, "bold"), bg="#4CAF50", fg="white", command=self.predict
+        )
+        predict_btn.pack(pady=15)
+
+        # Prediction result label
+        self.result_label = tk.Label(root, text="", bg="#f0f2f5", font=("Helvetica", 14, "bold"))
+        self.result_label.pack()
+
+        # Selected image storage
+        self.selected_image = None
+        self._tk_image_ref = None  # keep reference to avoid GC
+
+        # Class labels (adjust to match the model’s output)
+        self.class_labels = ["Class 1", "Class 2", "Class 3", "Class 4"]
+
+    def load_model_hardcoded(self, db_key):
+        """Load the model from a predefined hardcoded path for the given DB key."""
+        path = self.model_paths.get(db_key, "")
+        if not path:
+            messagebox.showerror("Error", f"No hardcoded path set for {db_key}. Please update self.model_paths.")
+            return
+        try:
+            model = load_model(path)
+            self.models[db_key] = model
+            self.current_model_key = db_key
+            self.model_path_label.config(text=f"{db_key} model loaded from:\n{path}")
+            messagebox.showinfo("Model Loaded", f"Model for {db_key} successfully loaded.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load model for {db_key}:\n{e}")
+
+    def select_image(self):
+        path = filedialog.askopenfilename(
+            title="Select an image",
+            filetypes=[("Image files", "*.jpg *.jpeg *.png *.bmp *.tif *.tiff"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+        img = cv2.imread(path)
+        if img is None:
+            messagebox.showerror("Error", "Failed to load image.")
+            return
+        self.selected_image = img
+
+        # Display resized RGB on canvas
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img_pil = Image.fromarray(img_rgb).resize((224, 224), Image.LANCZOS)
+        self._tk_image_ref = ImageTk.PhotoImage(img_pil)
+        self.img_canvas.delete("all")
+        self.img_canvas.create_image(0, 0, anchor=tk.NW, image=self._tk_image_ref)
+        self.result_label.config(text="")
+
+    def predict(self):
+        if self.current_model_key is None or self.models[self.current_model_key] is None:
+            messagebox.showwarning("Warning", "Please load a model first (DB1/DB2/DB3).")
+            return
+        if self.selected_image is None:
+            messagebox.showwarning("Warning", "Please select an image first.")
+            return
+
+        try:
+            # Each function must return a (150,150) float array
+            f1 = deep_color_based_pattern(self.selected_image)      # (150,150)
+            f2 = Deep_Structural_Pattern(self.selected_image)       # (150,150)
+            f3 = glcm_statistical_features(self.selected_image)     # (150,150)
+            f4 = Resnet151(self.selected_image)                     # (150,150)
+            f5 = deep_pixel_flow_map(self.selected_image)           # (150,150)
+
+            # Validate shapes
+            for i, f in enumerate([f1, f2, f3, f4, f5], start=1):
+                if not isinstance(f, np.ndarray):
+                    raise ValueError(f"Feature f{i} is not a numpy array")
+                if f.ndim != 2 or f.shape != (150, 150):
+                    raise ValueError(f"Feature f{i} shape must be (150, 150), got {f.shape}")
+        except Exception as e:
+            messagebox.showerror("Feature Extraction Error", str(e))
+            return
+
+        try:
+            # Stack to (150,150,5)
+            features_stack = np.stack([f1, f2, f3, f4, f5], axis=-1).astype(np.float32)
+
+            # Add batch dim -> (1,150,150,5)
+            features_batch = np.expand_dims(features_stack, axis=0)
+
+            # Predict
+            preds = self.models[self.current_model_key].predict(features_batch)
+            pred_class = int(np.argmax(preds, axis=1)[0])
+            pred_prob = float(preds[pred_class])
+
+            # Defensive label selection
+            if pred_class < len(self.class_labels):
+                label = self.class_labels[pred_class]
+            else:
+                label = f"Class {pred_class+1}"
+
+            self.result_label.config(text=f"Prediction: {label} (Confidence: {pred_prob:.2f})")
+        except Exception as e:
+            messagebox.showerror("Prediction Error", str(e))
+
+def main():
+    root = tk.Tk()
+    app = App(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
